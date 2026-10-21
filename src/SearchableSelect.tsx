@@ -61,7 +61,7 @@ export function SearchableSelect({
             <input
               type="text"
               autoFocus
-              placeholder="Type to filter options…"
+              placeholder="Search..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               onClick={e => e.stopPropagation()}

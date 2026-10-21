@@ -617,7 +617,7 @@ function Leads({leads,reload,say,openLead,initialAdd=false,onAddClosed}:{leads:R
    <div className="search-bar-wrap">
     <i className="fa-solid fa-magnifying-glass search-icon"></i>
     <input
-     placeholder="Search by company, person, job title, email, phone, country…"
+     placeholder="Search..."
      value={q}
      onChange={e=>setQ(e.target.value)}
     />
@@ -796,8 +796,8 @@ function Complete({f,say,done}:{f:Row,say:Say,done:()=>void}){
   say('Follow-up marked as completed!');setOpen(false);done();
  };
  return open?(
-  <div className="row" style={{marginBottom:0,alignItems:'center',gap:8}}>
-   <input placeholder="Add outcome summary (optional)" value={out} onChange={e=>setOut(e.target.value)}/>
+  <div className="followup-complete-inline">
+   <input placeholder="Outcome summary (optional)" value={out} onChange={e=>setOut(e.target.value)}/>
    <button className="btn btn-primary btn-sm" onClick={go}><i className="fa-solid fa-check"></i> Confirm</button>
    <button className="btn btn-secondary btn-sm" onClick={()=>setOpen(false)}><i className="fa-solid fa-xmark"></i></button>
   </div>
@@ -839,13 +839,11 @@ function FollowUps({fups,reload,say,openLead}:P){
         {parsed.notes&&<span className="followup-notes-text"> — {parsed.notes}</span>}
        </div>
 
-       <div className="row" style={{marginTop:14,marginBottom:0,justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
-        <div style={{display:'flex',gap:10,alignItems:'center'}}>
-         <Complete f={f} say={say} done={async()=>{await reload();}}/>
-         <button className="btn btn-secondary btn-sm" onClick={()=>setNext(next?.id===f.id?null:f)}>
-          <i className="fa-solid fa-calendar-plus"></i> Schedule Next
-         </button>
-        </div>
+       <div className="followup-actions-single-row">
+        <Complete f={f} say={say} done={async()=>{await reload();}}/>
+        <button className="btn btn-secondary btn-sm" onClick={()=>setNext(next?.id===f.id?null:f)}>
+         <i className="fa-solid fa-calendar-plus"></i> Schedule Next
+        </button>
         <AddToCalendarButtons f={f} leadName={f.leads?.company_name}/>
        </div>
        {next?.id===f.id&&<div style={{marginTop:14}}>
@@ -1219,7 +1217,7 @@ function LeadDetail({lead,reload,say,back,fups}:P&{lead:Row,back:()=>void}){
           </span>
          </div>
          <div className="lead-followup-action" style={{marginTop: 6}}>{parsed.action}</div>
-         <div style={{marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8}}>
+         <div className="followup-actions-single-row" style={{marginTop: 10}}>
           <Complete f={f} say={say} done={refresh}/>
           <AddToCalendarButtons f={f} leadName={lead.company_name}/>
          </div>
