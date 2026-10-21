@@ -2,6 +2,7 @@ import {useCallback,useEffect,useMemo,useState} from 'react';
 import Papa from 'papaparse';
 import {supabase,configured} from './supabase';
 import {FIELDS,RATINGS,STATUSES,SERVICES,METHODS,autoMap,buildRows,existingFrom,safeCell,Built} from './importLogic';
+import {LeadForm} from './LeadForm';
 
 type Row=Record<string,any>;
 type Say=(m:string,err?:boolean)=>void;
@@ -183,25 +184,12 @@ function Dashboard({leads,fups,openLead}:P){
  </>;
 }
 
-const empty:Row={company_name:'',rating:'Cold',status:'New'};
-function LeadForm({init,onSave,onCancel}:{init:Row,onSave:(v:Row)=>void,onCancel:()=>void}){
- const[v,setV]=useState<Row>(init);const set=(k:string,x:string)=>setV(o=>({...o,[k]:x}));
- const sel=(k:string,list:string[],blank?:boolean)=><select value={v[k]??''} onChange={e=>set(k,e.target.value)}>{blank&&<option value="">—</option>}{list.map(x=><option key={x}>{x}</option>)}</select>;
- const txt=['company_name','contact_person','job_title','email','phone','website','linkedin_url','country','industry','source'];
- const label=(k:string)=>FIELDS.find(f=>f.key===k)?.label||k;
-
- return<div className="card"><div className="form">
-  {txt.map(k=><div key={k}><label>{label(k)}{k==='company_name'&&' *'}</label><input value={v[k]??''} onChange={e=>set(k,e.target.value)}/></div>)}
-  <div><label>Rating</label>{sel('rating',RATINGS)}</div><div><label>Status</label>{sel('status',STATUSES)}</div><div><label>Service interest</label>{sel('service_interest',SERVICES,true)}</div>
-  <div className="wide"><label>Why this lead is promising</label><textarea rows={2} value={v.promising_reason??''} onChange={e=>set('promising_reason',e.target.value)}/></div>
-  <div className="wide"><label>Personal notes</label><textarea rows={3} value={v.notes??''} onChange={e=>set('notes',e.target.value)}/></div></div>
-  <div className="row" style={{marginTop:14}}><button className="btn" onClick={()=>onSave(v)}>Save lead</button><button className="btn sec" onClick={onCancel}>Cancel</button></div></div>;
-}
+const empty:Row={company_name:'',rating:'Cold',status:'New',source:'LinkedIn'};
 
 function Leads({leads,reload,say,openLead}:P){
  const[q,setQ]=useState(''),[rt,setRt]=useState(''),[st,setSt]=useState(''),[sv,setSv]=useState(''),[adding,setAdding]=useState(false),[page,setPage]=useState(0);
  const list=useMemo(()=>{const t=q.toLowerCase();return leads.filter(l=>(!rt||l.rating===rt)&&(!st||l.status===st)&&(!sv||l.service_interest===sv)&&
-  (!t||['company_name','contact_person','email','phone','country','industry'].some(k=>(l[k]||'').toLowerCase().includes(t))));},[leads,q,rt,st,sv]);
+  (!t||['company_name','contact_person','email','phone','country','industry','job_title','source'].some(k=>(l[k]||'').toLowerCase().includes(t))));},[leads,q,rt,st,sv]);
  useEffect(()=>setPage(0),[q,rt,st,sv]);
 
  const create=async(v:Row)=>{

@@ -561,6 +561,120 @@ tr.click:hover {
   border: 1px solid #d3e8eb;
 }
 
+/* Searchable Select */
+.searchable-select-wrap {
+  position: relative;
+  width: 100%;
+}
+.searchable-select-control {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 40px;
+  user-select: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.searchable-select-control:hover {
+  border-color: #b0c9cd;
+}
+.searchable-select-control.active {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px rgba(0, 143, 140, 0.15);
+}
+.select-val {
+  color: var(--ink);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 8px;
+}
+.select-placeholder {
+  color: #8da4ac;
+}
+.select-arrow {
+  font-size: 10px;
+  color: var(--mut);
+}
+.searchable-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(5, 55, 62, 0.15);
+  z-index: 1000;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+.searchable-select-search-box {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fafb;
+}
+.searchable-select-search-box input {
+  padding: 7px 10px;
+  font-size: 13.5px;
+}
+.searchable-select-list {
+  overflow-y: auto;
+  max-height: 210px;
+}
+.searchable-select-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--ink);
+  transition: background 0.1s ease;
+}
+.searchable-select-item:hover {
+  background: #f0f7f8;
+  color: var(--acc);
+}
+.searchable-select-item.selected {
+  background: #e6f6f6;
+  font-weight: 600;
+  color: var(--acc);
+}
+.searchable-select-no-results {
+  padding: 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--mut);
+}
+
+/* Phone input group */
+.phone-input-group {
+  display: flex;
+  gap: 8px;
+}
+.phone-dial-select {
+  flex: 0 0 145px;
+  width: 145px;
+  background: #f8fafb;
+  font-size: 13px;
+  font-weight: 500;
+}
+.phone-number-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Lead Form card enhancements */
+.lead-form-card {
+  border: 1px solid #b6d5db;
+  box-shadow: 0 4px 20px rgba(5, 55, 62, 0.08);
+}
+
 /* Responsive */
 @media (max-width: 820px) {
   .app { flex-direction: column; }
@@ -584,4 +698,7 @@ tr.click:hover {
   }
   .side-footer { display: none; }
   .main { padding: 16px; }
+  .phone-input-group { flex-direction: column; }
+  .phone-dial-select { width: 100%; }
 }
+
