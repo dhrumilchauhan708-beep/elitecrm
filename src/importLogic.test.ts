@@ -1,0 +1,17 @@
+import Papa from 'papaparse';
+import {autoMap,buildRows,existingFrom} from './importLogic.ts';
+const csv=`Company Name,Full Name,E-mail,Website,Rating,Services\r\n"Acme, Inc.",Ann,ANN@acme.com,https://www.acme.com/,hot,SEO\r\nBeta Ltd,Bob,bob@beta,beta.com,Warm,Shopify\r\n,Nobody,n@x.com,,,\r\nAcme Inc Dup,Ann2,ann@acme.com,,Cold,Other\r\nGamma,Gus,gus@gamma.io,gamma.io,Lukewarm,WordPress\r\nDelta,Dee,old@delta.com,delta.com,,\r\n`;
+const p=Papa.parse<Record<string,string>>(csv,{header:true,skipEmptyLines:true});
+const m=autoMap(p.meta.fields!);
+const ex=existingFrom([{email_normalized:'old@delta.com',company_name:'Delta',website:'https://delta.com'}]);
+const r=buildRows(p.data,m,ex);
+let fail=0;const ok=(n:string,c:boolean)=>{console.log((c?'PASS ':'FAIL ')+n);if(!c)fail++;};
+ok('headers auto-mapped (Full Name, E-mail, Services)',m['Full Name']==='contact_person'&&m['E-mail']==='email'&&m['Services']==='service_interest');
+ok('quoted comma in company kept',r[0].record.company_name==='Acme, Inc.');
+ok('email lower-cased, rating normalised',r[0].record.email==='ann@acme.com'&&r[0].record.rating==='Hot');
+ok('invalid email rejected',r[1].errors[0]?.startsWith('Invalid email'));
+ok('missing company rejected',r[2].errors.includes('Missing company name'));
+ok('in-file duplicate email flagged',r[3].duplicateOf==='same email');
+ok('unknown rating warned, not guessed',r[4].warnings.length===1&&!r[4].record.rating&&!r[4].duplicateOf);
+ok('duplicate of existing database lead flagged',r[5].duplicateOf==='same email');
+console.log(fail?`${fail} FAILED`:'all passed');process.exit(fail?1:0);
