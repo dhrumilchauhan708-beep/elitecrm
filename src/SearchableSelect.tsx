@@ -21,7 +21,6 @@ export function SearchableSelect({
   const [search, setSearch] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  // Close when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
@@ -52,16 +51,17 @@ export function SearchableSelect({
         <span className={value ? 'select-val' : 'select-placeholder'}>
           {value || placeholder}
         </span>
-        <span className="select-arrow">{open ? '▲' : '▼'}</span>
+        <i className={`fa-solid fa-chevron-down select-arrow ${open ? 'open' : ''}`}></i>
       </div>
 
       {open && (
         <div className="searchable-select-dropdown">
           <div className="searchable-select-search-box">
+            <i className="fa-solid fa-magnifying-glass search-box-icon"></i>
             <input
               type="text"
               autoFocus
-              placeholder="Type to search…"
+              placeholder="Type to filter options…"
               value={search}
               onChange={e => setSearch(e.target.value)}
               onClick={e => e.stopPropagation()}
@@ -75,11 +75,14 @@ export function SearchableSelect({
                   className={`searchable-select-item ${opt === value ? 'selected' : ''}`}
                   onClick={() => handleSelect(opt)}
                 >
-                  {opt}
+                  <span>{opt}</span>
+                  {opt === value && <i className="fa-solid fa-check check-icon"></i>}
                 </div>
               ))
             ) : (
-              <div className="searchable-select-no-results">No matching options</div>
+              <div className="searchable-select-no-results">
+                <i className="fa-regular fa-folder-open" style={{marginRight: 6}}></i> No matching options
+              </div>
             )}
           </div>
         </div>

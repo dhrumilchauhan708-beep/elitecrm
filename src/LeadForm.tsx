@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   COUNTRIES,
   JOB_TITLES,
@@ -48,7 +48,6 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
   const [dialCode, setDialCode] = useState(parsedPhone.dialCode);
   const [localPhone, setLocalPhone] = useState(parsedPhone.localNumber);
 
-  // When country changes, automatically synchronize dial code
   const handleCountryChange = (newCountryName: string) => {
     setCountry(newCountryName);
     const matched = findCountry(newCountryName);
@@ -97,51 +96,41 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
     initNotes && !noteInList ? initNotes : ''
   );
 
-  // List of all country names for searchable dropdown
   const countryOptions = COUNTRIES.map(c => c.name);
 
-  // List of countries for calling code selector dropdown
-  // Sort so primary common codes show cleanly
   const callingCodeOptions = COUNTRIES.map(c => ({
     label: `${c.dialCode} (${c.name})`,
     value: c.dialCode
   }));
 
   const handleSave = () => {
-    // Resolve final Job Title
     let finalTitle = jobTitleSelect;
     if (jobTitleSelect === 'Other') {
       finalTitle = customJobTitle.trim() || 'Other';
     }
 
-    // Resolve final Phone
     let finalPhone = '';
     if (localPhone.trim()) {
       finalPhone = `${dialCode} ${localPhone.trim()}`.trim();
     } else if (dialCode && dialCode !== '+91') {
-      // If user specifically picked a dial code but no number
       finalPhone = dialCode;
     }
 
-    // Resolve final Industry
     let finalIndustry = industrySelect;
     if (industrySelect === 'Other') {
       finalIndustry = customIndustry.trim() || 'Other';
     }
 
-    // Resolve final Source
     let finalSource = sourceSelect;
     if (sourceSelect === 'Other') {
       finalSource = customSource.trim() || 'Other';
     }
 
-    // Resolve final Why Promising
     let finalPromising = promisingSelect;
     if (promisingSelect === 'Other') {
       finalPromising = customPromising.trim() || 'Other';
     }
 
-    // Resolve final Notes
     let finalNotes = noteSelect;
     if (noteSelect === 'Custom Note') {
       finalNotes = customNotes.trim();
@@ -171,10 +160,23 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
 
   return (
     <div className="card lead-form-card">
+      <div className="lead-form-header">
+        <div className="lead-form-title">
+          <i className="fa-solid fa-address-card lead-form-icon"></i>
+          <div>
+            <h3>{init.id ? 'Edit Lead Profile' : 'Create New Lead'}</h3>
+            <p className="mut">Enter lead credentials, contact specifics, and initial outreach details.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="form-section-title">
+        <i className="fa-solid fa-building-user"></i> Core Contact Info
+      </div>
       <div className="form">
         {/* Company Name */}
         <div>
-          <label>Company Name *</label>
+          <label><i className="fa-solid fa-building"></i> Company Name <span className="req">*</span></label>
           <input
             placeholder="e.g. Acme Innovations"
             value={companyName}
@@ -184,7 +186,7 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
 
         {/* Contact Person */}
         <div>
-          <label>Contact Person</label>
+          <label><i className="fa-solid fa-user"></i> Primary Contact Person</label>
           <input
             placeholder="e.g. John Doe"
             value={contactPerson}
@@ -192,9 +194,9 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
           />
         </div>
 
-        {/* 1. Job Title - Searchable Dropdown */}
+        {/* 1. Job Title */}
         <div>
-          <label>Job Title</label>
+          <label><i className="fa-solid fa-briefcase"></i> Job Title</label>
           <SearchableSelect
             value={jobTitleSelect}
             onChange={val => {
@@ -216,7 +218,7 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
 
         {/* Email */}
         <div>
-          <label>Email Address</label>
+          <label><i className="fa-solid fa-envelope"></i> Email Address</label>
           <input
             type="email"
             placeholder="john@example.com"
@@ -225,9 +227,9 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
           />
         </div>
 
-        {/* 2. Country - Searchable Dropdown */}
+        {/* 2. Country */}
         <div>
-          <label>Country</label>
+          <label><i className="fa-solid fa-earth-americas"></i> Country</label>
           <SearchableSelect
             value={country}
             onChange={handleCountryChange}
@@ -236,9 +238,9 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
           />
         </div>
 
-        {/* 2. Phone Number with Synchronized Calling Code */}
+        {/* 2. Phone */}
         <div>
-          <label>Phone Number</label>
+          <label><i className="fa-solid fa-phone"></i> Phone / WhatsApp</label>
           <div className="phone-input-group">
             <select
               className="phone-dial-select"
@@ -263,7 +265,7 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
 
         {/* Website */}
         <div>
-          <label>Website</label>
+          <label><i className="fa-solid fa-globe"></i> Website URL</label>
           <input
             placeholder="https://example.com"
             value={website}
@@ -271,19 +273,24 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
           />
         </div>
 
-        {/* LinkedIn URL */}
+        {/* LinkedIn */}
         <div>
-          <label>LinkedIn URL</label>
+          <label><i className="fa-brands fa-linkedin"></i> LinkedIn Profile URL</label>
           <input
             placeholder="https://linkedin.com/in/profile"
             value={linkedinUrl}
             onChange={e => setLinkedinUrl(e.target.value)}
           />
         </div>
+      </div>
 
-        {/* 3. Industry - Web/UI/UX Relevant Dropdown */}
+      <div className="form-section-title" style={{ marginTop: 20 }}>
+        <i className="fa-solid fa-chart-line"></i> Sales Classification & Source
+      </div>
+      <div className="form">
+        {/* 3. Industry */}
         <div>
-          <label>Industry</label>
+          <label><i className="fa-solid fa-industry"></i> Industry Sector</label>
           <select
             value={industrySelect}
             onChange={e => {
@@ -308,9 +315,9 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
           )}
         </div>
 
-        {/* 4. Lead Source - Specific Options */}
+        {/* 4. Lead Source */}
         <div>
-          <label>Lead Source</label>
+          <label><i className="fa-solid fa-bullhorn"></i> Lead Source</label>
           <select
             value={sourceSelect}
             onChange={e => {
@@ -336,11 +343,11 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
 
         {/* Rating */}
         <div>
-          <label>Rating</label>
+          <label><i className="fa-solid fa-fire"></i> Priority Rating</label>
           <select value={rating} onChange={e => setRating(e.target.value)}>
             {RATINGS.map(r => (
               <option key={r} value={r}>
-                {r}
+                {r === 'Hot' ? '🔥 Hot' : r === 'Warm' ? '☀️ Warm' : '❄️ Cold'}
               </option>
             ))}
           </select>
@@ -348,7 +355,7 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
 
         {/* Status */}
         <div>
-          <label>Status</label>
+          <label><i className="fa-solid fa-circle-notch"></i> Pipeline Status</label>
           <select value={status} onChange={e => setStatus(e.target.value)}>
             {STATUSES.map(s => (
               <option key={s} value={s}>
@@ -360,7 +367,7 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
 
         {/* Service Interest */}
         <div>
-          <label>Service Interest</label>
+          <label><i className="fa-solid fa-layer-group"></i> Service Interest</label>
           <select
             value={serviceInterest}
             onChange={e => setServiceInterest(e.target.value)}
@@ -373,10 +380,15 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
             ))}
           </select>
         </div>
+      </div>
 
-        {/* 5. Why This Lead Is Promising - Predefined Dropdown */}
+      <div className="form-section-title" style={{ marginTop: 20 }}>
+        <i className="fa-solid fa-lightbulb"></i> Strategic Opportunity & Notes
+      </div>
+      <div className="form">
+        {/* 5. Why Promising */}
         <div className="wide">
-          <label>Why This Lead Is Promising</label>
+          <label><i className="fa-solid fa-star"></i> Why This Lead Is Promising</label>
           <select
             value={promisingSelect}
             onChange={e => {
@@ -401,16 +413,16 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
           )}
         </div>
 
-        {/* 6. Personal Notes - Dropdown + Custom Note Support */}
+        {/* 6. Personal Notes */}
         <div className="wide">
-          <label>Personal Notes / Action Stage</label>
+          <label><i className="fa-solid fa-clipboard-list"></i> Personal Notes / Action Stage</label>
           <select
             value={noteSelect}
             onChange={e => {
               setNoteSelect(e.target.value);
             }}
           >
-            <option value="">— Select note / status —</option>
+            <option value="">— Select note / action stage —</option>
             {NOTE_OPTIONS.map(opt => (
               <option key={opt} value={opt}>
                 {opt}
@@ -421,7 +433,7 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
             <textarea
               style={{ marginTop: 8 }}
               rows={3}
-              placeholder="Enter custom notes or additional details…"
+              placeholder="Enter custom notes or specific client context…"
               value={customNotes}
               onChange={e => setCustomNotes(e.target.value)}
             />
@@ -429,12 +441,12 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
         </div>
       </div>
 
-      <div className="row" style={{ marginTop: 18, marginBottom: 0 }}>
+      <div className="row form-actions" style={{ marginTop: 22, marginBottom: 0 }}>
         <button className="btn" onClick={handleSave}>
-          Save Lead
+          <i className="fa-solid fa-floppy-disk"></i> Save Lead Profile
         </button>
         <button className="btn sec" onClick={onCancel}>
-          Cancel
+          <i className="fa-solid fa-xmark"></i> Cancel
         </button>
       </div>
     </div>
