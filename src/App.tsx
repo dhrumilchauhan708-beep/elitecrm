@@ -76,6 +76,161 @@ const MethodIcon=({m}:{m:string})=>{
  return <i className="fa-solid fa-comment-dots"></i>;
 };
 
+export const MEETING_PLATFORMS = [
+ { id: 'Google Meet', label: 'Google Meet', icon: 'fa-solid fa-video', defaultMethod: 'Other' },
+ { id: 'Zoom', label: 'Zoom Meeting', icon: 'fa-solid fa-video', defaultMethod: 'Other' },
+ { id: 'Microsoft Teams', label: 'Microsoft Teams', icon: 'fa-solid fa-users-rectangle', defaultMethod: 'Other' },
+ { id: 'WhatsApp', label: 'WhatsApp Call / Chat', icon: 'fa-brands fa-whatsapp', defaultMethod: 'WhatsApp' },
+ { id: 'Phone', label: 'Direct Phone Call', icon: 'fa-solid fa-phone', defaultMethod: 'Phone' },
+ { id: 'In-Person', label: 'In-Person Meeting', icon: 'fa-solid fa-handshake', defaultMethod: 'Other' },
+ { id: 'Email', label: 'Email Follow-up', icon: 'fa-solid fa-envelope', defaultMethod: 'Email' },
+ { id: 'Other', label: 'Other', icon: 'fa-solid fa-calendar-check', defaultMethod: 'Other' }
+];
+
+export function getPlatformInfo(platform: string) {
+ const found = MEETING_PLATFORMS.find(p => p.id.toLowerCase() === (platform || '').toLowerCase() || p.label.toLowerCase() === (platform || '').toLowerCase());
+ if (found) return found;
+ if (platform === 'WhatsApp') return { id: 'WhatsApp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp' };
+ if (platform === 'Phone') return { id: 'Phone', label: 'Phone Call', icon: 'fa-solid fa-phone' };
+ if (platform === 'Email') return { id: 'Email', label: 'Email', icon: 'fa-solid fa-envelope' };
+ return { id: platform || 'Meeting', label: platform || 'Meeting', icon: 'fa-solid fa-calendar-check' };
+}
+
+export function parseFollowUp(f: Row) {
+ const rawAction = f.next_action || '';
+ const match = rawAction.match(/^\[(.*?)\]\s*(.*)$/);
+ const platform = match ? match[1] : (f.method || 'Follow-up');
+ const action = match ? match[2] : (rawAction || 'Scheduled follow-up');
+
+ const notesText = f.notes || '';
+ const urlMatch = notesText.match(/(https?:\/\/[^\s]+)/);
+ const meetingUrl = urlMatch ? urlMatch[1] : null;
+
+ return {
+  platform,
+  action,
+  meetingUrl,
+  notes: notesText
+ };
+}
+
+export function formatGoogleCalendarUrl({
+ title,
+ start,
+ durationMinutes = 30,
+ details = '',
+ location = ''
+}: {
+ title: string;
+ start: Date | string;
+ durationMinutes?: number;
+ details?: string;
+ location?: string;
+}) {
+ const startDate = new Date(start);
+ const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+ const toGCalString = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+ const datesParam = `${toGCalString(startDate)}/${toGCalString(endDate)}`;
+
+ const params = new URLSearchParams({
+  action: 'TEMPLATE',
+  text: title,
+  dates: datesParam,
+  details: details,
+  location: location
+ });
+
+ return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+export function downloadIcsFile({
+ title,
+ start,
+ durationMinutes = 30,
+ details = '',
+ location = ''
+}: {
+ title: string;
+ start: Date | string;
+ durationMinutes?: number;
+ details?: string;
+ location?: string;
+}) {
+ const startDate = new Date(start);
+ const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+ const toIcsString = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+ const icsContent = [
+  'BEGIN:VCALENDAR',
+  'VERSION:2.0',
+  'PRODID:-//EliteInfotec CRM//EN',
+  'CALSCALE:GREGORIAN',
+  'BEGIN:VEVENT',
+  `UID:${Date.now()}@eliteinfotec.in`,
+  `DTSTAMP:${toIcsString(new Date())}`,
+  `DTSTART:${toIcsString(startDate)}`,
+  `DTEND:${toIcsString(endDate)}`,
+  `SUMMARY:${title.replace(/\n/g, ' ')}`,
+  `DESCRIPTION:${details.replace(/\n/g, '\\n')}`,
+  `LOCATION:${location.replace(/\n/g, ' ')}`,
+  'STATUS:CONFIRMED',
+  'END:VEVENT',
+  'END:VCALENDAR'
+ ].join('\r\n');
+
+ const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+ const url = URL.createObjectURL(blob);
+ const link = document.createElement('a');
+ link.href = url;
+ link.setAttribute('download', `${title.replace(/[^a-zA-Z0-9_-]/g, '_')}.ics`);
+ document.body.appendChild(link);
+ link.click();
+ document.body.removeChild(link);
+ URL.revokeObjectURL(url);
+}
+
+function AddToCalendarButtons({
+ f,
+ leadName
+}: {
+ f: Row;
+ leadName?: string;
+}) {
+ const parsed = parseFollowUp(f);
+ const company = leadName || f.leads?.company_name || 'Client';
+ const eventTitle = `Meeting with ${company} (${parsed.platform})`;
+ const details = `Meeting Platform: ${parsed.platform}\nAgenda: ${parsed.action}\nLead: ${company}\n${parsed.notes ? 'Notes: ' + parsed.notes : ''}`;
+ const location = parsed.meetingUrl || parsed.platform;
+
+ const gcalUrl = formatGoogleCalendarUrl({
+  title: eventTitle,
+  start: f.due_at,
+  details,
+  location
+ });
+
+ return (
+  <div className="add-to-calendar-btn-group">
+   {parsed.meetingUrl && (
+    <a href={parsed.meetingUrl} target="_blank" rel="noreferrer" className="btn btn-sm btn-join-meeting" title="Join Meeting">
+     <i className="fa-solid fa-video"></i> Join
+    </a>
+   )}
+   <a href={gcalUrl} target="_blank" rel="noreferrer" className="btn btn-sm btn-cal-gcal" title="Add to Google Calendar">
+    <i className="fa-brands fa-google"></i> Add to Calendar
+   </a>
+   <button
+    type="button"
+    className="btn btn-sm btn-cal-ics"
+    onClick={() => downloadIcsFile({ title: eventTitle, start: f.due_at, details, location })}
+    title="Download .ics for Outlook / Apple Calendar"
+   >
+    <i className="fa-solid fa-calendar-arrow-down"></i> .ics
+   </button>
+  </div>
+ );
+}
+
 export default function App(){
  const[session,setSession]=useState<any>(undefined);
  useEffect(()=>{
@@ -542,33 +697,90 @@ function Leads({leads,reload,say,openLead,initialAdd=false,onAddClosed}:{leads:R
 }
 
 function Schedule({lead,say,done,label='Schedule Follow-up'}:{lead:Row,say:Say,done:()=>void,label?:string}){
- const[due,setDue]=useState(''),[m,setM]=useState('Email'),[a,setA]=useState(''),[n,setN]=useState('');
+ const[due,setDue]=useState(''),[platform,setPlatform]=useState('Google Meet'),
+  [link,setLink]=useState(''),[a,setA]=useState(''),[n,setN]=useState('');
+
  const save=async()=>{
   if(!due)return say('Please select a date and time',true);
   const iso=new Date(due).toISOString();
-  const{error}=await supabase.from('follow_ups').insert({lead_id:lead.id,due_at:iso,method:m,next_action:a||null,notes:n||null});
+  const methodDb = ['Email','WhatsApp','Phone','LinkedIn'].includes(platform) ? platform : 'Other';
+  const finalNextAction = `[${platform}] ${a.trim() || 'Scheduled meeting'}`;
+  const notesArr:string[] = [];
+  if (link.trim()) notesArr.push(`Link: ${link.trim()}`);
+  if (n.trim()) notesArr.push(n.trim());
+  const finalNotes = notesArr.length ? notesArr.join('\n') : null;
+
+  const{error}=await supabase.from('follow_ups').insert({
+   lead_id:lead.id,
+   due_at:iso,
+   method:methodDb,
+   next_action:finalNextAction,
+   notes:finalNotes
+  });
   if(error)return say(error.message,true);
-  await logAct(lead.id,'Follow-up scheduled',`${m} on ${fmt(iso)}`,[a,n].filter(Boolean).join(' — '));
-  setDue('');setA('');setN('');say('Follow-up scheduled successfully');done();
+
+  await logAct(lead.id,'Follow-up scheduled',`${platform} meeting on ${fmt(iso)}`,[finalNextAction,link].filter(Boolean).join(' — '));
+  setDue('');setA('');setN('');setLink('');
+  say(`Meeting scheduled via ${platform}!`);
+  done();
  };
 
  return<div className="schedule-box">
-  <div className="schedule-header"><i className="fa-solid fa-calendar-plus"></i> Set Follow-up Reminder</div>
-  <div className="row">
+  <div className="schedule-header">
+   <i className="fa-solid fa-calendar-plus"></i> Set Follow-up / Meeting Reminder
+  </div>
+  
+  <div className="schedule-form-grid">
    <div>
-    <label className="field-label-sm"><i className="fa-regular fa-calendar"></i> Date & Time</label>
+    <label className="field-label-sm"><i className="fa-regular fa-calendar"></i> Date & Time (12h format)</label>
     <input type="datetime-local" value={due} onChange={e=>setDue(e.target.value)}/>
    </div>
+
    <div>
-    <label className="field-label-sm"><i className="fa-solid fa-paper-plane"></i> Contact Channel</label>
-    <select value={m} onChange={e=>setM(e.target.value)}>{METHODS.map(x=><option key={x}>{x}</option>)}</select>
+    <label className="field-label-sm"><i className="fa-solid fa-video"></i> Meeting Platform</label>
+    <select value={platform} onChange={e=>setPlatform(e.target.value)}>
+     {MEETING_PLATFORMS.map(p=>(
+      <option key={p.id} value={p.id}>{p.label}</option>
+     ))}
+    </select>
    </div>
   </div>
+
   {due&&<div className="hint-12h"><i className="fa-regular fa-clock"></i> 12-Hour Confirmation: <b>{fmt(due)}</b></div>}
-  <div className="row">
-   <input placeholder="Next action (e.g. Send portfolio / Discuss proposal)" value={a} onChange={e=>setA(e.target.value)}/>
-   <input placeholder="Internal notes for this follow-up" value={n} onChange={e=>setN(e.target.value)}/>
-   <button className="btn btn-primary" onClick={save}><i className="fa-solid fa-check"></i> {label}</button>
+
+  <div className="schedule-form-grid" style={{marginTop: 10}}>
+   <div>
+    <label className="field-label-sm"><i className="fa-solid fa-link"></i> Meeting Link / Room (Optional)</label>
+    <input
+     placeholder="e.g. meet.google.com/xyz-abcd-efg or Zoom link"
+     value={link}
+     onChange={e=>setLink(e.target.value)}
+    />
+   </div>
+
+   <div>
+    <label className="field-label-sm"><i className="fa-solid fa-pen"></i> Meeting Agenda / Action</label>
+    <input
+     placeholder="e.g. Discuss UI/UX scope & project estimate"
+     value={a}
+     onChange={e=>setA(e.target.value)}
+    />
+   </div>
+  </div>
+
+  <div style={{marginTop: 10}}>
+   <label className="field-label-sm"><i className="fa-solid fa-note-sticky"></i> Additional Internal Notes</label>
+   <input
+    placeholder="e.g. Client requested portfolio examples for fintech app"
+    value={n}
+    onChange={e=>setN(e.target.value)}
+   />
+  </div>
+
+  <div style={{marginTop: 14, display: 'flex', justifyContent: 'flex-end', gap: 10}}>
+   <button className="btn btn-primary" onClick={save}>
+    <i className="fa-solid fa-check"></i> {label}
+   </button>
   </div>
  </div>;
 }
@@ -584,7 +796,7 @@ function Complete({f,say,done}:{f:Row,say:Say,done:()=>void}){
   say('Follow-up marked as completed!');setOpen(false);done();
  };
  return open?(
-  <div className="row" style={{marginBottom:0,alignItems:'center'}}>
+  <div className="row" style={{marginBottom:0,alignItems:'center',gap:8}}>
    <input placeholder="Add outcome summary (optional)" value={out} onChange={e=>setOut(e.target.value)}/>
    <button className="btn btn-primary btn-sm" onClick={go}><i className="fa-solid fa-check"></i> Confirm</button>
    <button className="btn btn-secondary btn-sm" onClick={()=>setOpen(false)}><i className="fa-solid fa-xmark"></i></button>
@@ -603,32 +815,45 @@ function FollowUps({fups,reload,say,openLead}:P){
     <span className="followup-count-badge">{l.length}</span>
    </div>
    <div className="followup-items-list">
-    {l.map(f=><div className="card followup-item-card" key={f.id}>
-     <div className="followup-card-top">
-      <a href="#" onClick={e=>{e.preventDefault();openLead(f.lead_id)}} className="followup-lead-link">
-       <i className="fa-solid fa-building"></i> <b>{f.leads?.company_name}</b>
-      </a>
-      <span className={`followup-due-tag ${k==='overdue'?'tag-overdue':''}`}>
-       <i className="fa-regular fa-clock"></i> {fmt(f.due_at)}
-      </span>
-     </div>
+    {l.map(f=>{
+     const parsed = parseFollowUp(f);
+     const info = getPlatformInfo(parsed.platform);
+     return (
+      <div className="card followup-item-card" key={f.id}>
+       <div className="followup-card-top">
+        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+         <a href="#" onClick={e=>{e.preventDefault();openLead(f.lead_id)}} className="followup-lead-link">
+          <i className="fa-solid fa-building"></i> <b>{f.leads?.company_name}</b>
+         </a>
+         <span className={`platform-badge platform-${parsed.platform.toLowerCase().replace(/\s+/g,'-')}`}>
+          <i className={info.icon}></i> {parsed.platform}
+         </span>
+        </div>
+        <span className={`followup-due-tag ${k==='overdue'?'tag-overdue':''}`}>
+         <i className="fa-regular fa-clock"></i> {fmt(f.due_at)}
+        </span>
+       </div>
 
-     <div className="followup-action-line">
-      <span className="followup-channel-badge"><MethodIcon m={f.method}/> {f.method}</span>
-      <span className="followup-action-text">{f.next_action||'No next action specified'}</span>
-      {f.notes&&<span className="followup-notes-text"> — {f.notes}</span>}
-     </div>
+       <div className="followup-action-line">
+        <span className="followup-action-text">{parsed.action}</span>
+        {parsed.notes&&<span className="followup-notes-text"> — {parsed.notes}</span>}
+       </div>
 
-     <div className="row" style={{marginTop:12,marginBottom:0}}>
-      <Complete f={f} say={say} done={async()=>{await reload();}}/>
-      <button className="btn btn-secondary btn-sm" onClick={()=>setNext(next?.id===f.id?null:f)}>
-       <i className="fa-solid fa-calendar-plus"></i> Schedule Next
-      </button>
-     </div>
-     {next?.id===f.id&&<div style={{marginTop:14}}>
-      <Schedule lead={{id:f.lead_id}} say={say} label="Save Follow-up" done={async()=>{setNext(null);await reload();}}/>
-     </div>}
-    </div>)}
+       <div className="row" style={{marginTop:14,marginBottom:0,justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
+        <div style={{display:'flex',gap:10,alignItems:'center'}}>
+         <Complete f={f} say={say} done={async()=>{await reload();}}/>
+         <button className="btn btn-secondary btn-sm" onClick={()=>setNext(next?.id===f.id?null:f)}>
+          <i className="fa-solid fa-calendar-plus"></i> Schedule Next
+         </button>
+        </div>
+        <AddToCalendarButtons f={f} leadName={f.leads?.company_name}/>
+       </div>
+       {next?.id===f.id&&<div style={{marginTop:14}}>
+        <Schedule lead={{id:f.lead_id}} say={say} label="Save Follow-up" done={async()=>{setNext(null);await reload();}}/>
+       </div>}
+      </div>
+     );
+    })}
     {!l.length&&<p className="mut empty-followup-text"><i className="fa-regular fa-circle-check"></i> No items in this section.</p>}
    </div>
   </div>;
@@ -638,7 +863,7 @@ function FollowUps({fups,reload,say,openLead}:P){
   <div className="page-header">
    <div>
     <h2><i className="fa-solid fa-clock-rotate-left text-teal"></i> Follow-up Pipeline</h2>
-    <p className="page-subtitle">Track timely follow-ups across email, WhatsApp, LinkedIn, and calls.</p>
+    <p className="page-subtitle">Track timely follow-ups across Google Meet, Zoom, WhatsApp, calls, and email.</p>
    </div>
   </div>
   {grp('overdue','Overdue Follow-ups','fa-solid fa-triangle-exclamation text-rose')}
@@ -657,8 +882,8 @@ function Calendar({fups,openLead}:P){
  return<>
   <div className="page-header">
    <div>
-    <h2><i className="fa-solid fa-calendar-days text-teal"></i> Follow-up Calendar</h2>
-    <p className="page-subtitle">Upcoming calls, meetings, and client follow-ups organized by day (12-hour AM/PM).</p>
+    <h2><i className="fa-solid fa-calendar-days text-teal"></i> Follow-up & Meeting Calendar</h2>
+    <p className="page-subtitle">Upcoming calls, video meetings, and follow-ups with 1-click Google Calendar & .ics sync.</p>
    </div>
   </div>
 
@@ -668,29 +893,40 @@ function Calendar({fups,openLead}:P){
      <div className="calendar-day-title">
       <i className="fa-regular fa-calendar"></i> {d}
      </div>
-     <span className="calendar-count-badge">{l.length} follow-up{l.length>1?'s':''}</span>
+     <span className="calendar-count-badge">{l.length} meeting{l.length>1?'s':''}</span>
     </div>
     <div className="calendar-items-list">
-     {l.map(f=><div key={f.id} className="calendar-item-row">
-      <span className="calendar-time-pill">
-       <i className="fa-regular fa-clock"></i> {fmtTime(f.due_at)}
-      </span>
-      <span className="calendar-channel"><MethodIcon m={f.method}/> {f.method}</span>
-      <a href="#" onClick={e=>{e.preventDefault();openLead(f.lead_id)}} className="calendar-lead-link">
-       <i className="fa-solid fa-building"></i> {f.leads?.company_name}
-      </a>
-      <span className="calendar-action-note">{f.next_action}</span>
-     </div>)}
+     {l.map(f=>{
+      const parsed = parseFollowUp(f);
+      const info = getPlatformInfo(parsed.platform);
+      return (
+       <div key={f.id} className="calendar-item-row">
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',flex:1}}>
+         <span className="calendar-time-pill">
+          <i className="fa-regular fa-clock"></i> {fmtTime(f.due_at)}
+         </span>
+         <span className={`platform-badge platform-${parsed.platform.toLowerCase().replace(/\s+/g,'-')}`}>
+          <i className={info.icon}></i> {parsed.platform}
+         </span>
+         <a href="#" onClick={e=>{e.preventDefault();openLead(f.lead_id)}} className="calendar-lead-link">
+          <i className="fa-solid fa-building"></i> {f.leads?.company_name}
+         </a>
+         <span className="calendar-action-note">{parsed.action}</span>
+        </div>
+        <AddToCalendarButtons f={f} leadName={f.leads?.company_name}/>
+       </div>
+      );
+     })}
     </div>
    </div>)}
   </div>
   {!days.size&&<div className="card empty-state-card">
-   <i className="fa-regular fa-calendar-check empty-state-icon"></i>
-   <h3>No Pending Follow-ups</h3>
-   <p className="mut">Your calendar is clear. Schedule follow-ups from the All Leads table.</p>
-  </div>}
- </>;
-}
+    <i className="fa-regular fa-calendar-check empty-state-icon"></i>
+    <h3>No Pending Follow-ups</h3>
+    <p className="mut">Your calendar is clear. Schedule follow-ups or meetings from any lead profile.</p>
+   </div>}
+  </>;
+ }
 
 function LeadDetail({lead,reload,say,back,fups}:P&{lead:Row,back:()=>void}){
  const[acts,setActs]=useState<Row[]>([]),[edit,setEdit]=useState(false),[type,setType]=useState('Note'),[sum,setSum]=useState('');
@@ -971,11 +1207,25 @@ function LeadDetail({lead,reload,say,back,fups}:P&{lead:Row,back:()=>void}){
        <h3><i className="fa-solid fa-clock-rotate-left text-teal"></i> Scheduled Reminders</h3>
        <span className="header-count-pill">{mine.length}</span>
       </div>
-      {mine.map(f=><div key={f.id} className="lead-followup-item">
-       <div className="lead-followup-time"><i className="fa-regular fa-clock"></i> {fmt(f.due_at)} · {f.method}</div>
-       <div className="lead-followup-action">{f.next_action||'Follow-up scheduled'}</div>
-       <div style={{marginTop: 8}}><Complete f={f} say={say} done={refresh}/></div>
-      </div>)}
+      {mine.map(f=>{
+       const parsed = parseFollowUp(f);
+       const info = getPlatformInfo(parsed.platform);
+       return (
+        <div key={f.id} className="lead-followup-item">
+         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:6}}>
+          <div className="lead-followup-time"><i className="fa-regular fa-clock"></i> {fmt(f.due_at)}</div>
+          <span className={`platform-badge platform-${parsed.platform.toLowerCase().replace(/\s+/g,'-')}`}>
+           <i className={info.icon}></i> {parsed.platform}
+          </span>
+         </div>
+         <div className="lead-followup-action" style={{marginTop: 6}}>{parsed.action}</div>
+         <div style={{marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8}}>
+          <Complete f={f} say={say} done={refresh}/>
+          <AddToCalendarButtons f={f} leadName={lead.company_name}/>
+         </div>
+        </div>
+       );
+      })}
       {!mine.length&&<p className="mut" style={{fontSize: 13}}><i className="fa-solid fa-circle-check text-emerald"></i> No pending reminders for this lead.</p>}
       <div style={{marginTop: 16}}>
        <Schedule lead={lead} say={say} done={refresh}/>

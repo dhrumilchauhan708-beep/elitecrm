@@ -238,29 +238,34 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
           />
         </div>
 
-        {/* 2. Phone */}
+        {/* 2. Country Calling Code / Extension */}
         <div>
-          <label><i className="fa-solid fa-phone"></i> Phone / WhatsApp</label>
-          <div className="phone-input-group">
-            <select
-              className="phone-dial-select"
-              value={dialCode}
-              onChange={e => setDialCode(e.target.value)}
-            >
-              {callingCodeOptions.map((opt, i) => (
-                <option key={`${opt.value}-${i}`} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <input
-              className="phone-number-input"
-              type="tel"
-              placeholder="Phone number"
-              value={localPhone}
-              onChange={e => setLocalPhone(e.target.value)}
-            />
-          </div>
+          <label><i className="fa-solid fa-hashtag"></i> Country Calling Code / Extension</label>
+          <select
+            className="phone-dial-select"
+            value={dialCode}
+            onChange={e => setDialCode(e.target.value)}
+            style={{ width: '100%', height: 40 }}
+          >
+            {callingCodeOptions.map((opt, i) => (
+              <option key={`${opt.value}-${i}`} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* 2. Phone Number */}
+        <div>
+          <label><i className="fa-solid fa-phone"></i> Phone / WhatsApp Number</label>
+          <input
+            className="phone-number-input"
+            type="tel"
+            placeholder="e.g. 98765 43210 (without country code)"
+            value={localPhone}
+            onChange={e => setLocalPhone(e.target.value)}
+            style={{ width: '100%', height: 40 }}
+          />
         </div>
 
         {/* Website */}
@@ -441,11 +446,11 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
         </div>
       </div>
 
-      <div className="row form-actions" style={{ marginTop: 22, marginBottom: 0 }}>
-        <button className="btn" onClick={handleSave}>
+      <div className="row form-actions" style={{ marginTop: 24, marginBottom: 0, gap: 14 }}>
+        <button className="btn btn-primary" onClick={handleSave}>
           <i className="fa-solid fa-floppy-disk"></i> Save Lead Profile
         </button>
-        <button className="btn sec" onClick={onCancel}>
+        <button className="btn btn-secondary" onClick={onCancel}>
           <i className="fa-solid fa-xmark"></i> Cancel
         </button>
       </div>
