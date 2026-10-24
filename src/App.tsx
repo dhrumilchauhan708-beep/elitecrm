@@ -1,5 +1,6 @@
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import {supabase,configured} from './supabase';
 import {FIELDS,RATINGS,STATUSES,SERVICES,METHODS,autoMap,buildRows,existingFrom,safeCell,Built} from './importLogic';
 import {LeadForm} from './LeadForm';
@@ -1651,20 +1652,53 @@ function Import({leads,reload,say}:P){
 
  const onFile=(f?:File)=>{
   if(!f)return;setFile(f.name);
-  if(/\.xlsx?$/i.test(f.name))return say('Excel files are not supported. In Excel use File → Save As → CSV, then upload that.',true);
+  if(/\.xlsx?$/i.test(f.name)){
+   const reader=new FileReader();
+   reader.onload=(e)=>{
+    try{
+     const data=new Uint8Array(e.target?.result as ArrayBuffer);
+     const workbook=XLSX.read(data,{type:'array'});
+     const firstSheetName=workbook.SheetNames[0];
+     const worksheet=workbook.Sheets[firstSheetName];
+     const json=XLSX.utils.sheet_to_json<Row>(worksheet,{defval:''});
+     if(!json.length)return say('No rows found in this Excel sheet',true);
+     const fields=Object.keys(json[0]||{});
+     setRows(json);setMap(autoMap(fields));
+     say(`Loaded ${json.length} rows from Excel spreadsheet!`);
+    }catch(err:any){
+     say('Failed to read Excel file: '+err.message,true);
+    }
+   };
+   reader.readAsArrayBuffer(f);
+   return;
+  }
   Papa.parse<Row>(f,{header:true,skipEmptyLines:true,complete:r=>{
    if(!r.meta.fields?.length)return say('No header row found in this CSV',true);
    setRows(r.data);setMap(autoMap(r.meta.fields));
+   say(`Loaded ${r.data.length} rows from CSV!`);
   },error:e=>say(e.message,true)});
  };
 
- const template=()=>{
+ const templateExcel=()=>{
+  const a=document.createElement('a');
+  a.href='/elite_leads_template_with_dropdowns.xlsx';
+  a.download='elite_leads_template_with_dropdowns.xlsx';
+  a.click();
+ };
+
+ const templateCsv=()=>{
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([Papa.unparse({
    fields:FIELDS.map(f=>f.label),
-   data:[['Acme Corp','Jane Doe','CTO','jane@example.com','+91 98765 43210','https://example.com','https://linkedin.com/in/jane','India','Web Development','LinkedIn','Warm','New','Web Development','Needs web redesign','Met on LinkedIn']]
+   data:[
+     ['NexGen Retail Solutions','Rajesh Sharma','Chief Technology Officer','rajesh@nexgenretail.com','+91 98765 43210','https://nexgenretail.com','https://linkedin.com/in/rajesh-sharma','India','E-commerce','LinkedIn','Hot','Interested','Shopify','Expanding D2C brand needing custom Shopify store and ERP integration','Met on LinkedIn; budget approved for Q4'],
+     ['Apex Health Systems','Sarah Jenkins','Head of Digital Products','s.jenkins@apexhealth.co.uk','+44 20 7946 0912','https://apexhealth.co.uk','https://linkedin.com/in/sarah-jenkins','United Kingdom','Healthcare','Referral','Warm','To Contact','Mobile App','Looking for cross-platform Flutter/React Native patient app','Referred by Dr. Watson; follow up next Tuesday'],
+     ['Starlight Media Group','Michael Vance','Marketing Director','michael@starlightmedia.com','+1 (415) 555-0198','https://starlightmedia.com','https://linkedin.com/in/michael-vance','United States','Media & Marketing','Website Inquiry','Hot','Proposal Sent','Web Development','Needs complete web portal redesign with high SEO performance','Proposal submitted yesterday; awaiting feedback'],
+     ['Solaria Tech','Priya Patel','Founder & CEO','priya@solaria.tech','+91 91234 56789','https://solaria.tech','https://linkedin.com/in/priya-patel','India','SaaS','Cold Email','Cold','New','AI Automation','Early-stage startup interested in automated CRM workflows','Outreached via cold email; awaiting first response'],
+     ['Urban Living Furniture','David Miller','Managing Director','david@urbanliving.com.au','+61 2 9876 5432','https://urbanliving.com.au','https://linkedin.com/in/david-miller','Australia','Furniture & Decor','Google Search','Warm','Contacted','WordPress','Wants to migrate legacy site to high-speed WooCommerce','Scheduled demo call']
+   ]
   })],{type:'text/csv'}));
-  a.download='elite-leads-template.csv';a.click();
+  a.download='elite-leads-sample.csv';a.click();
  };
 
  const run=async()=>{
@@ -1687,23 +1721,30 @@ function Import({leads,reload,say}:P){
   <div className="page-header">
    <div>
     <h2><i className="fa-solid fa-file-arrow-up text-teal"></i> Bulk Import Leads</h2>
-    <p className="page-subtitle">Upload CSV lists from LinkedIn, Apollo, scrapers, or spreadsheets.</p>
+    <p className="page-subtitle">Upload CSV or Excel spreadsheets from LinkedIn, Apollo, scrapers, or spreadsheets.</p>
    </div>
-   <div className="header-actions">
-    <button className="btn btn-secondary" onClick={template}>
-     <i className="fa-solid fa-download"></i> Download Sample CSV
+   <div className="header-actions" style={{display:'flex',gap:'10px',flexWrap:'wrap'}}>
+    <button className="btn btn-primary" onClick={templateExcel} title="Download Excel Template with in-cell dropdowns for Countries, Statuses, Ratings, etc.">
+     <i className="fa-solid fa-file-excel"></i> Download Excel Template (with Dropdowns)
+    </button>
+    <button className="btn btn-secondary" onClick={templateCsv} title="Download CSV sample file">
+     <i className="fa-solid fa-file-csv"></i> Download Sample CSV
     </button>
    </div>
   </div>
 
   <div className="card import-drop-card">
    <div className="import-icon-circle"><i className="fa-solid fa-cloud-arrow-up"></i></div>
-   <h3>Upload CSV Spreadsheet</h3>
-   <p className="mut">Select a CSV file containing your leads. You can map every column to CRM fields before saving.</p>
+   <h3>Upload CSV or Excel Spreadsheet</h3>
+   <p className="mut">Select a <b>.csv</b> or <b>.xlsx</b> spreadsheet containing your leads. You can map every column to CRM fields before saving.</p>
    <div className="file-input-wrapper">
-    <input type="file" accept=".csv,text/csv" onChange={e=>onFile(e.target.files?.[0])} id="csv-upload-input"/>
+    <input type="file" accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={e=>onFile(e.target.files?.[0])} id="csv-upload-input"/>
    </div>
-   {file && <div className="selected-file-badge"><i className="fa-solid fa-file-csv"></i> Loaded: <b>{file}</b> ({rows.length} rows)</div>}
+   {file && (
+    <div className="selected-file-badge">
+     <i className={`fa-solid ${/\.xlsx?$/i.test(file) ? 'fa-file-excel text-emerald' : 'fa-file-csv text-teal'}`}></i> Loaded: <b>{file}</b> ({rows.length} rows)
+    </div>
+   )}
   </div>
 
   {rows.length>0&&<>
