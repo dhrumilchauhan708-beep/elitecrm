@@ -234,7 +234,8 @@ export function LeadForm({ init, onSave, onCancel }: LeadFormProps) {
             value={country}
             onChange={handleCountryChange}
             options={countryOptions}
-            placeholder="Search country (e.g. India, USA)…"
+            placeholder="Search country"
+            searchPlaceholder="Search country"
           />
         </div>
 

@@ -170,6 +170,19 @@ export const LEAD_SOURCES = [
   'Other'
 ];
 
+export const MEETING_SOURCES = [
+  'LinkedIn',
+  'OnlineJob',
+  'VirtualStaff',
+  'Upwork',
+  'Fiverr',
+  'Website / Inbound',
+  'Referral',
+  'Cold Outreach',
+  'WhatsApp',
+  'Other'
+];
+
 export const PROMISING_REASONS = [
   'Looking for Web Development Services',
   'Looking for UI/UX Design Services',

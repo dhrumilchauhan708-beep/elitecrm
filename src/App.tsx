@@ -3,6 +3,7 @@ import Papa from 'papaparse';
 import {supabase,configured} from './supabase';
 import {FIELDS,RATINGS,STATUSES,SERVICES,METHODS,autoMap,buildRows,existingFrom,safeCell,Built} from './importLogic';
 import {LeadForm} from './LeadForm';
+import {MEETING_SOURCES} from './leadOptions';
 
 type Row=Record<string,any>;
 type Say=(m:string,err?:boolean)=>void;
@@ -106,10 +107,14 @@ export function parseFollowUp(f: Row) {
  const urlMatch = notesText.match(/(https?:\/\/[^\s]+)/);
  const meetingUrl = urlMatch ? urlMatch[1] : null;
 
+ const sourceMatch = notesText.match(/Source:\s*([^\n\r]+)/i);
+ const meetingSource = sourceMatch ? sourceMatch[1].trim() : (f.leads?.source || null);
+
  return {
   platform,
   action,
   meetingUrl,
+  meetingSource,
   notes: notesText
  };
 }
@@ -199,7 +204,13 @@ function AddToCalendarButtons({
  const parsed = parseFollowUp(f);
  const company = leadName || f.leads?.company_name || 'Client';
  const eventTitle = `Meeting with ${company} (${parsed.platform})`;
- const details = `Meeting Platform: ${parsed.platform}\nAgenda: ${parsed.action}\nLead: ${company}\n${parsed.notes ? 'Notes: ' + parsed.notes : ''}`;
+ const details = [
+  `Meeting Platform: ${parsed.platform}`,
+  parsed.meetingSource ? `Meeting Source: ${parsed.meetingSource}` : '',
+  `Agenda: ${parsed.action}`,
+  `Lead / Client: ${company}`,
+  parsed.notes ? `Notes:\n${parsed.notes}` : ''
+ ].filter(Boolean).join('\n');
  const location = parsed.meetingUrl || parsed.platform;
 
  const gcalUrl = formatGoogleCalendarUrl({
@@ -315,7 +326,8 @@ function Login(){
 function Shell(){
  const[page,setPage]=useState('Dashboard'),[open,setOpen]=useState<string|null>(null),[leads,setLeads]=useState<Row[]>([]),[fups,setFups]=useState<Row[]>([]),
   [loading,setLoading]=useState(true),[toast,setToast]=useState<{m:string,err:boolean}|null>(null),
-  [quickAdd,setQuickAdd]=useState(false);
+  [quickAdd,setQuickAdd]=useState(false),
+  [mobileMenuOpen,setMobileMenuOpen]=useState(false);
 
  const[liveClock,setLiveClock]=useState('');
  useEffect(()=>{
@@ -330,7 +342,7 @@ function Shell(){
  const say:Say=(m,err=false)=>{setToast({m,err});setTimeout(()=>setToast(null),4000);};
 
  const reload=useCallback(async()=>{try{
-  const[l,f]=await Promise.all([fetchAll('leads'),fetchAll('follow_ups','*, leads(company_name)',b=>b.is('completed_at',null))]);
+  const[l,f]=await Promise.all([fetchAll('leads'),fetchAll('follow_ups','*, leads(company_name, source, contact_person)',b=>b.is('completed_at',null))]);
   setLeads(l);setFups(f.sort((a,b)=>+new Date(a.due_at)-+new Date(b.due_at)));
  }catch(x:any){say('Could not load data: '+x.message,true);}setLoading(false);},[]);
 
@@ -338,7 +350,7 @@ function Shell(){
  const due=fups.filter(f=>bucket(f)!=='upcoming').length,over=fups.filter(f=>bucket(f)==='overdue').length;
  useEffect(()=>{document.title=(due?`(${due}) `:'')+'EliteInfotec CRM';},[due]);
 
- const nav=(p:string)=>{setPage(p);setOpen(null);};
+ const nav=(p:string)=>{setPage(p);setOpen(null);setMobileMenuOpen(false);};
  const lead=open&&leads.find(l=>l.id===open);
  const props={leads,fups,reload,say,openLead:(id:string)=>setOpen(id)};
 
@@ -354,7 +366,11 @@ function Shell(){
 
  return(
   <div className="app">
-   <nav className="side">
+   {mobileMenuOpen && (
+    <div className="side-backdrop" onClick={()=>setMobileMenuOpen(false)}/>
+   )}
+
+   <nav className={`side ${mobileMenuOpen?'mobile-open':''}`}>
     <div className="side-brand">
      <div className="side-brand-top">
       <img src="/favicon.jpg" alt="EliteInfotec Emblem" className="side-emblem"/>
@@ -400,6 +416,9 @@ function Shell(){
     {/* Sleek Topbar */}
     <header className="topbar">
      <div className="topbar-left">
+      <button className="mobile-menu-btn" onClick={()=>setMobileMenuOpen(true)} title="Open navigation">
+       <i className="fa-solid fa-bars"></i>
+      </button>
       <div className="topbar-breadcrumb">
        <span className="crumb-brand">EliteInfotec</span>
        <span className="crumb-sep"><i className="fa-solid fa-chevron-right"></i></span>
@@ -411,11 +430,11 @@ function Shell(){
       <div className="live-clock-badge">
        <span className="live-clock-dot"></span>
        <i className="fa-regular fa-clock"></i>
-       <span>{liveClock || '12h Clock'}</span>
+       <span className="live-clock-text">{liveClock || '12h Clock'}</span>
       </div>
 
       <button className="btn btn-primary btn-sm topbar-action-btn" onClick={()=>{nav('All Leads');setQuickAdd(true);}}>
-       <i className="fa-solid fa-plus"></i> New Lead
+       <i className="fa-solid fa-plus"></i> <span className="topbar-action-label">New Lead</span>
       </button>
      </div>
     </header>
@@ -439,6 +458,58 @@ function Shell(){
      page==='Import Data'?<Import {...props}/>:
      page==='Company Details'?<CompanyDetails/>:<Settings/>}
    </main>
+
+   {/* Mobile App Bottom Tab Bar */}
+   <nav className="mobile-bottom-bar" aria-label="Mobile Navigation">
+    <button
+     type="button"
+     className={`mobile-tab-btn ${page === 'Dashboard' && !open ? 'active' : ''}`}
+     onClick={() => nav('Dashboard')}
+    >
+     <i className="fa-solid fa-gauge-high"></i>
+     <span>Dashboard</span>
+    </button>
+
+    <button
+     type="button"
+     className={`mobile-tab-btn ${page === 'All Leads' && !open ? 'active' : ''}`}
+     onClick={() => nav('All Leads')}
+    >
+     <i className="fa-solid fa-address-book"></i>
+     <span>Leads</span>
+    </button>
+
+    <button
+     type="button"
+     className={`mobile-tab-btn ${page === 'Calendar' && !open ? 'active' : ''}`}
+     onClick={() => nav('Calendar')}
+    >
+     <i className="fa-solid fa-calendar-days"></i>
+     <span>Calendar</span>
+    </button>
+
+    <button
+     type="button"
+     className={`mobile-tab-btn ${page === 'Follow-ups' && !open ? 'active' : ''}`}
+     onClick={() => nav('Follow-ups')}
+    >
+     <div className="mobile-tab-icon-wrap">
+      <i className="fa-solid fa-clock-rotate-left"></i>
+      {Boolean(due && due > 0) && <span className="mobile-tab-badge">{due}</span>}
+     </div>
+     <span>Follow-ups</span>
+    </button>
+
+    <button
+     type="button"
+     className={`mobile-tab-btn ${['Import Data', 'Company Details', 'Settings'].includes(page) && !open ? 'active' : ''}`}
+     onClick={() => setMobileMenuOpen(true)}
+    >
+     <i className="fa-solid fa-bars"></i>
+     <span>Menu</span>
+    </button>
+   </nav>
+
    {toast&&<div className={'toast'+(toast.err?' err':'')}>
     <i className={`fa-solid ${toast.err?'fa-circle-xmark':'fa-circle-check'}`}></i>
     <span>{toast.m}</span>
@@ -698,15 +769,18 @@ function Leads({leads,reload,say,openLead,initialAdd=false,onAddClosed}:{leads:R
 
 function Schedule({lead,say,done,label='Schedule Follow-up'}:{lead:Row,say:Say,done:()=>void,label?:string}){
  const[due,setDue]=useState(''),[platform,setPlatform]=useState('Google Meet'),
+  [src,setSrc]=useState(lead?.source || 'LinkedIn'),[customSrc,setCustomSrc]=useState(''),
   [link,setLink]=useState(''),[a,setA]=useState(''),[n,setN]=useState('');
 
  const save=async()=>{
   if(!due)return say('Please select a date and time',true);
+  const finalSource = src === 'Other' ? (customSrc.trim() || 'Other') : src;
   const iso=new Date(due).toISOString();
   const methodDb = ['Email','WhatsApp','Phone','LinkedIn'].includes(platform) ? platform : 'Other';
   const finalNextAction = `[${platform}] ${a.trim() || 'Scheduled meeting'}`;
   const notesArr:string[] = [];
   if (link.trim()) notesArr.push(`Link: ${link.trim()}`);
+  if (finalSource.trim()) notesArr.push(`Source: ${finalSource.trim()}`);
   if (n.trim()) notesArr.push(n.trim());
   const finalNotes = notesArr.length ? notesArr.join('\n') : null;
 
@@ -719,9 +793,13 @@ function Schedule({lead,say,done,label='Schedule Follow-up'}:{lead:Row,say:Say,d
   });
   if(error)return say(error.message,true);
 
-  await logAct(lead.id,'Follow-up scheduled',`${platform} meeting on ${fmt(iso)}`,[finalNextAction,link].filter(Boolean).join(' — '));
+  if (lead.id && finalSource && (!lead.source || lead.source === 'Other')) {
+   await supabase.from('leads').update({source: finalSource}).eq('id', lead.id);
+  }
+
+  await logAct(lead.id,'Follow-up scheduled',`${platform} meeting on ${fmt(iso)} (Source: ${finalSource})`,[finalNextAction,link].filter(Boolean).join(' — '));
   setDue('');setA('');setN('');setLink('');
-  say(`Meeting scheduled via ${platform}!`);
+  say(`Meeting scheduled via ${platform} (Source: ${finalSource})!`);
   done();
  };
 
@@ -735,6 +813,26 @@ function Schedule({lead,say,done,label='Schedule Follow-up'}:{lead:Row,say:Say,d
     <label className="field-label-sm"><i className="fa-regular fa-calendar"></i> Date & Time (12h format)</label>
     <input type="datetime-local" value={due} onChange={e=>setDue(e.target.value)}/>
    </div>
+
+   <div>
+    <label className="field-label-sm"><i className="fa-solid fa-share-nodes text-teal"></i> Meeting Source</label>
+    <select value={src} onChange={e=>setSrc(e.target.value)}>
+     {MEETING_SOURCES.map(s=>(
+      <option key={s} value={s}>{s}</option>
+     ))}
+    </select>
+   </div>
+
+   {src==='Other' && (
+    <div>
+     <label className="field-label-sm"><i className="fa-solid fa-pen"></i> Custom Meeting Source</label>
+     <input
+      placeholder="Specify meeting source..."
+      value={customSrc}
+      onChange={e=>setCustomSrc(e.target.value)}
+     />
+    </div>
+   )}
 
    <div>
     <label className="field-label-sm"><i className="fa-solid fa-video"></i> Meeting Platform</label>
@@ -828,6 +926,11 @@ function FollowUps({fups,reload,say,openLead}:P){
          <span className={`platform-badge platform-${parsed.platform.toLowerCase().replace(/\s+/g,'-')}`}>
           <i className={info.icon}></i> {parsed.platform}
          </span>
+         {parsed.meetingSource && (
+          <span className="meeting-source-pill" title={`Meeting Source: ${parsed.meetingSource}`}>
+           <i className="fa-solid fa-share-nodes"></i> {parsed.meetingSource}
+          </span>
+         )}
         </div>
         <span className={`followup-due-tag ${k==='overdue'?'tag-overdue':''}`}>
          <i className="fa-regular fa-clock"></i> {fmt(f.due_at)}
@@ -870,7 +973,275 @@ function FollowUps({fups,reload,say,openLead}:P){
  </>;
 }
 
-function Calendar({fups,openLead}:P){
+function CalendarAddSchedule({
+ leads,
+ say,
+ done,
+ onCancel
+}:{
+ leads: Row[];
+ say: Say;
+ done: () => Promise<void> | void;
+ onCancel: () => void;
+}) {
+ const [isNewLead, setIsNewLead] = useState(false);
+ const [selectedLeadId, setSelectedLeadId] = useState(leads[0]?.id || '');
+ const [newCompanyName, setNewCompanyName] = useState('');
+ const [newContactPerson, setNewContactPerson] = useState('');
+
+ const [due, setDue] = useState('');
+ const [platform, setPlatform] = useState('Google Meet');
+ const [src, setSrc] = useState('LinkedIn');
+ const [customSrc, setCustomSrc] = useState('');
+ const [link, setLink] = useState('');
+ const [agenda, setAgenda] = useState('');
+ const [notes, setNotes] = useState('');
+ const [busy, setBusy] = useState(false);
+
+ const handleLeadChange = (id: string) => {
+  setSelectedLeadId(id);
+  const chosen = leads.find(l => l.id === id);
+  if (chosen?.source) {
+   if (MEETING_SOURCES.includes(chosen.source)) {
+    setSrc(chosen.source);
+    setCustomSrc('');
+   } else {
+    setSrc('Other');
+    setCustomSrc(chosen.source);
+   }
+  }
+ };
+
+ const save = async () => {
+  if (!due) return say('Please select a meeting date and time', true);
+  let targetLeadId = selectedLeadId;
+  const finalSource = src === 'Other' ? (customSrc.trim() || 'Other') : src;
+
+  setBusy(true);
+
+  try {
+   if (isNewLead) {
+    if (!newCompanyName.trim()) {
+     setBusy(false);
+     return say('Please enter a company or prospect name', true);
+    }
+    const { data: leadData, error: leadErr } = await supabase.from('leads').insert({
+     company_name: newCompanyName.trim(),
+     contact_person: newContactPerson.trim() || null,
+     source: finalSource,
+     status: 'To Contact',
+     rating: 'Warm'
+    }).select('id, company_name').single();
+
+    if (leadErr) {
+     setBusy(false);
+     return say('Could not create lead: ' + leadErr.message, true);
+    }
+    targetLeadId = leadData.id;
+    await logAct(targetLeadId, 'Note', `Lead created while scheduling meeting (Source: ${finalSource})`);
+   } else {
+    if (!targetLeadId) {
+     setBusy(false);
+     return say('Please select a lead for this meeting', true);
+    }
+   }
+
+   const iso = new Date(due).toISOString();
+   const methodDb = ['Email', 'WhatsApp', 'Phone', 'LinkedIn'].includes(platform) ? platform : 'Other';
+   const finalNextAction = `[${platform}] ${agenda.trim() || 'Scheduled meeting'}`;
+   const notesArr: string[] = [];
+   if (link.trim()) notesArr.push(`Link: ${link.trim()}`);
+   if (finalSource.trim()) notesArr.push(`Source: ${finalSource.trim()}`);
+   if (notes.trim()) notesArr.push(notes.trim());
+   const finalNotes = notesArr.length ? notesArr.join('\n') : null;
+
+   const { error: fupErr } = await supabase.from('follow_ups').insert({
+    lead_id: targetLeadId,
+    due_at: iso,
+    method: methodDb,
+    next_action: finalNextAction,
+    notes: finalNotes
+   });
+
+   if (fupErr) {
+    setBusy(false);
+    return say('Could not save schedule: ' + fupErr.message, true);
+   }
+
+   if (targetLeadId && finalSource && (!leads.find(l => l.id === targetLeadId)?.source || leads.find(l => l.id === targetLeadId)?.source === 'Other')) {
+    await supabase.from('leads').update({ source: finalSource }).eq('id', targetLeadId);
+   }
+
+   await logAct(targetLeadId, 'Follow-up scheduled', `${platform} meeting on ${fmt(iso)} (Source: ${finalSource})`, [finalNextAction, link].filter(Boolean).join(' — '));
+
+   say(`Meeting scheduled via ${platform} (Source: ${finalSource})!`);
+   setBusy(false);
+   await done();
+  } catch (err: any) {
+   setBusy(false);
+   say('Error: ' + err.message, true);
+  }
+ };
+
+ return (
+  <div className="card schedule-creator-card">
+   <div className="schedule-creator-header">
+    <div className="schedule-creator-title">
+     <div className="schedule-creator-icon">
+      <i className="fa-solid fa-calendar-plus"></i>
+     </div>
+     <div>
+      <h3>Add Calendar Schedule</h3>
+      <p>Manually schedule a meeting, call, or follow-up with meeting source tracking and 1-click calendar sync.</p>
+     </div>
+    </div>
+   </div>
+
+   <div className="schedule-lead-mode-toggle">
+    <button
+     type="button"
+     className={`schedule-mode-btn ${!isNewLead ? 'active' : ''}`}
+     onClick={() => setIsNewLead(false)}
+    >
+     <i className="fa-solid fa-address-book"></i> Existing Lead ({leads.length})
+    </button>
+    <button
+     type="button"
+     className={`schedule-mode-btn ${isNewLead ? 'active' : ''}`}
+     onClick={() => setIsNewLead(true)}
+    >
+     <i className="fa-solid fa-plus"></i> New Prospect / Client
+    </button>
+   </div>
+
+   {!isNewLead ? (
+    <div style={{ marginBottom: 14 }}>
+     <label className="field-label-sm"><i className="fa-solid fa-building"></i> Select Lead / Client *</label>
+     <select
+      value={selectedLeadId}
+      onChange={e => handleLeadChange(e.target.value)}
+      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)', background: '#fff' }}
+     >
+      {leads.length === 0 && <option value="">No leads in database</option>}
+      {leads.map(l => (
+       <option key={l.id} value={l.id}>
+        {l.company_name} {l.contact_person ? `(${l.contact_person})` : ''} {l.source ? `— [Source: ${l.source}]` : ''}
+       </option>
+      ))}
+     </select>
+    </div>
+   ) : (
+    <div className="schedule-form-grid" style={{ marginBottom: 14 }}>
+     <div>
+      <label className="field-label-sm"><i className="fa-solid fa-building"></i> Company / Client Name *</label>
+      <input
+       placeholder="e.g. Acme Innovations or John Client"
+       value={newCompanyName}
+       onChange={e => setNewCompanyName(e.target.value)}
+      />
+     </div>
+     <div>
+      <label className="field-label-sm"><i className="fa-solid fa-user"></i> Contact Person (Optional)</label>
+      <input
+       placeholder="e.g. John Doe"
+       value={newContactPerson}
+       onChange={e => setNewContactPerson(e.target.value)}
+      />
+     </div>
+    </div>
+   )}
+
+   <div className="schedule-form-grid">
+    <div>
+     <label className="field-label-sm">
+      <i className="fa-solid fa-share-nodes text-teal"></i> Meeting Source *
+     </label>
+     <select value={src} onChange={e => setSrc(e.target.value)}>
+      {MEETING_SOURCES.map(s => (
+       <option key={s} value={s}>{s}</option>
+      ))}
+     </select>
+    </div>
+
+    {src === 'Other' && (
+     <div>
+      <label className="field-label-sm"><i className="fa-solid fa-pen"></i> Custom Meeting Source *</label>
+      <input
+       placeholder="e.g. Upwork, Twitter, Inbound Call..."
+       value={customSrc}
+       onChange={e => setCustomSrc(e.target.value)}
+      />
+     </div>
+    )}
+
+    <div>
+     <label className="field-label-sm"><i className="fa-solid fa-video text-teal"></i> Meeting Platform</label>
+     <select value={platform} onChange={e => setPlatform(e.target.value)}>
+      {MEETING_PLATFORMS.map(p => (
+       <option key={p.id} value={p.id}>{p.label}</option>
+      ))}
+     </select>
+    </div>
+
+    <div>
+     <label className="field-label-sm"><i className="fa-regular fa-calendar text-teal"></i> Date & Time (12h format) *</label>
+     <input type="datetime-local" value={due} onChange={e => setDue(e.target.value)} />
+    </div>
+   </div>
+
+   {due && (
+    <div className="hint-12h" style={{ marginTop: 10 }}>
+     <i className="fa-regular fa-clock"></i> 12-Hour Confirmation: <b>{fmt(due)}</b>
+    </div>
+   )}
+
+   <div className="schedule-form-grid" style={{ marginTop: 12 }}>
+    <div>
+     <label className="field-label-sm"><i className="fa-solid fa-link"></i> Meeting Link / Room (Optional)</label>
+     <input
+      placeholder="e.g. meet.google.com/xyz-abcd-efg or Zoom link"
+      value={link}
+      onChange={e => setLink(e.target.value)}
+     />
+    </div>
+
+    <div>
+     <label className="field-label-sm"><i className="fa-solid fa-pen"></i> Meeting Agenda / Action</label>
+     <input
+      placeholder="e.g. Discuss UI/UX scope & project estimate"
+      value={agenda}
+      onChange={e => setAgenda(e.target.value)}
+     />
+    </div>
+   </div>
+
+   <div style={{ marginTop: 12 }}>
+    <label className="field-label-sm"><i className="fa-solid fa-note-sticky"></i> Internal Notes & Context (Optional)</label>
+    <input
+     placeholder="e.g. Client requested portfolio examples, budget discussion..."
+     value={notes}
+     onChange={e => setNotes(e.target.value)}
+    />
+   </div>
+
+   <div className="schedule-form-actions-row">
+    <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={busy}>
+     Cancel
+    </button>
+    <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>
+     {busy ? (
+      <><i className="fa-solid fa-spinner fa-spin"></i> Saving…</>
+     ) : (
+      <><i className="fa-solid fa-calendar-check"></i> Save & Add to Calendar</>
+     )}
+    </button>
+   </div>
+  </div>
+ );
+}
+
+function Calendar({leads,fups,reload,say,openLead}:P){
+ const [adding, setAdding] = useState(false);
  const days=new Map<string,Row[]>();
  fups.forEach(f=>{
   const k=new Date(f.due_at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
@@ -883,7 +1254,28 @@ function Calendar({fups,openLead}:P){
     <h2><i className="fa-solid fa-calendar-days text-teal"></i> Follow-up & Meeting Calendar</h2>
     <p className="page-subtitle">Upcoming calls, video meetings, and follow-ups with 1-click Google Calendar & .ics sync.</p>
    </div>
+   <div className="header-actions">
+    {!adding && (
+     <button className="btn btn-primary" onClick={()=>setAdding(true)}>
+      <i className="fa-solid fa-calendar-plus"></i> Add Calendar Schedule
+     </button>
+    )}
+   </div>
   </div>
+
+  {adding && (
+   <div style={{marginBottom: 20}}>
+    <CalendarAddSchedule
+     leads={leads}
+     say={say}
+     done={async () => {
+      setAdding(false);
+      await reload();
+     }}
+     onCancel={() => setAdding(false)}
+    />
+   </div>
+  )}
 
   <div className="calendar-grid">
    {[...days].map(([d,l])=><div className="card calendar-day-card" key={d}>
@@ -906,6 +1298,11 @@ function Calendar({fups,openLead}:P){
          <span className={`platform-badge platform-${parsed.platform.toLowerCase().replace(/\s+/g,'-')}`}>
           <i className={info.icon}></i> {parsed.platform}
          </span>
+         {parsed.meetingSource && (
+          <span className="meeting-source-pill" title={`Meeting Source: ${parsed.meetingSource}`}>
+           <i className="fa-solid fa-share-nodes"></i> {parsed.meetingSource}
+          </span>
+         )}
          <a href="#" onClick={e=>{e.preventDefault();openLead(f.lead_id)}} className="calendar-lead-link">
           <i className="fa-solid fa-building"></i> {f.leads?.company_name}
          </a>
@@ -921,7 +1318,12 @@ function Calendar({fups,openLead}:P){
   {!days.size&&<div className="card empty-state-card">
     <i className="fa-regular fa-calendar-check empty-state-icon"></i>
     <h3>No Pending Follow-ups</h3>
-    <p className="mut">Your calendar is clear. Schedule follow-ups or meetings from any lead profile.</p>
+    <p className="mut">Your calendar is clear. Schedule follow-ups or meetings manually or from any lead profile.</p>
+    <div style={{marginTop: 16}}>
+     <button className="btn btn-primary" onClick={()=>setAdding(true)}>
+      <i className="fa-solid fa-calendar-plus"></i> Add Calendar Schedule
+     </button>
+    </div>
    </div>}
   </>;
  }
@@ -1215,6 +1617,12 @@ function LeadDetail({lead,reload,say,back,fups}:P&{lead:Row,back:()=>void}){
           <span className={`platform-badge platform-${parsed.platform.toLowerCase().replace(/\s+/g,'-')}`}>
            <i className={info.icon}></i> {parsed.platform}
           </span>
+          {parsed.meetingSource && (
+           <span className="meeting-source-pill" title={`Meeting Source: ${parsed.meetingSource}`}>
+            <i className="fa-solid fa-share-nodes"></i> {parsed.meetingSource}
+           </span>
+          )}
+
          </div>
          <div className="lead-followup-action" style={{marginTop: 6}}>{parsed.action}</div>
          <div className="followup-actions-single-row" style={{marginTop: 10}}>

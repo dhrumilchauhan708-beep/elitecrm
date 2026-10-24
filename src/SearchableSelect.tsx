@@ -5,6 +5,7 @@ interface SearchableSelectProps {
   onChange: (val: string) => void;
   options: string[];
   placeholder?: string;
+  searchPlaceholder?: string;
   className?: string;
   id?: string;
 }
@@ -14,6 +15,7 @@ export function SearchableSelect({
   onChange,
   options,
   placeholder = 'Select or search…',
+  searchPlaceholder,
   className = '',
   id
 }: SearchableSelectProps) {
@@ -61,7 +63,7 @@ export function SearchableSelect({
             <input
               type="text"
               autoFocus
-              placeholder="Search..."
+              placeholder={searchPlaceholder || placeholder || 'Search...'}
               value={search}
               onChange={e => setSearch(e.target.value)}
               onClick={e => e.stopPropagation()}
