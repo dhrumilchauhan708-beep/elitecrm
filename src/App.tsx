@@ -5,6 +5,7 @@ import {supabase,configured} from './supabase';
 import {FIELDS,RATINGS,STATUSES,SERVICES,METHODS,autoMap,buildRows,existingFrom,safeCell,Built} from './importLogic';
 import {LeadForm} from './LeadForm';
 import {MEETING_SOURCES} from './leadOptions';
+import {ActivityTimeline} from './ActivityTimeline';
 
 type Row=Record<string,any>;
 type Say=(m:string,err?:boolean)=>void;
@@ -1330,7 +1331,7 @@ function Calendar({leads,fups,reload,say,openLead}:P){
  }
 
 function LeadDetail({lead,reload,say,back,fups}:P&{lead:Row,back:()=>void}){
- const[acts,setActs]=useState<Row[]>([]),[edit,setEdit]=useState(false),[type,setType]=useState('Note'),[sum,setSum]=useState('');
+ const[acts,setActs]=useState<Row[]>([]),[edit,setEdit]=useState(false);
  const mine=fups.filter(f=>f.lead_id===lead.id);
 
  const loadActs=useCallback(async()=>{
@@ -1348,13 +1349,6 @@ function LeadDetail({lead,reload,say,back,fups}:P&{lead:Row,back:()=>void}){
   if(rec.status!==lead.status)await logAct(lead.id,'Status change',`${lead.status} → ${rec.status}`);
   if(rec.rating!==lead.rating)await logAct(lead.id,'Rating change',`${lead.rating} → ${rec.rating}`);
   setEdit(false);await refresh();say('Lead updated successfully!');
- };
-
- const addAct=async()=>{
-  if(!sum.trim())return say('Write a short activity summary',true);
-  const{error}=await logAct(lead.id,type,sum.trim());if(error)return say(error.message,true);
-  if(type!=='Note')await supabase.from('leads').update({last_contact_at:new Date().toISOString()}).eq('id',lead.id);
-  setSum('');await refresh();say('Activity logged to timeline!');
  };
 
  const convert=async()=>{
@@ -1510,39 +1504,14 @@ function LeadDetail({lead,reload,say,back,fups}:P&{lead:Row,back:()=>void}){
      </div>
 
      {/* Activity Timeline in Main Column */}
-     <div className="card">
-      <div className="card-header-row">
-       <h3><i className="fa-solid fa-timeline text-teal"></i> Activity Timeline</h3>
-       <span className="card-header-badge">{acts.length} logged events</span>
-      </div>
-      <div className="log-activity-form">
-       <select value={type} onChange={e=>setType(e.target.value)}>
-        {['Note',...METHODS].map(x=><option key={x}>{x}</option>)}
-       </select>
-       <input
-        placeholder="What happened? (e.g. Discussed proposal via call, sent pricing)"
-        value={sum}
-        onChange={e=>setSum(e.target.value)}
-        onKeyDown={e=>e.key==='Enter'&&addAct()}
-       />
-       <button className="btn btn-primary btn-sm" onClick={addAct}>
-        <i className="fa-solid fa-plus"></i> Log Activity
-       </button>
-      </div>
-      <div className="timeline-wrap">
-       {acts.map(a=><div key={a.id} className="timeline-node">
-        <div className="timeline-icon-box"><i className={getActivityIcon(a.type)}></i></div>
-        <div className="timeline-content">
-         <div className="timeline-header-line">
-          <b>{a.type}</b> — {a.summary}
-         </div>
-         {a.details&&<div className="timeline-details-text">{a.details}</div>}
-         <div className="timeline-timestamp"><i className="fa-regular fa-clock"></i> {fmt(a.occurred_at)}</div>
-        </div>
-       </div>)}
-       {!acts.length&&<p className="mut" style={{fontSize: 13}}>No activity logged yet.</p>}
-      </div>
-     </div>
+     <ActivityTimeline
+      leadId={lead.id}
+      lead={lead}
+      acts={acts}
+      onRefresh={refresh}
+      say={say}
+      fmt={fmt}
+     />
     </div>
 
     <div className="lead-detail-sidebar-col">
